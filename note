@@ -1,0 +1,12 @@
+List databases
+\l
+Connect to database
+\c food_delivery
+List tables
+\dt
+Exit
+\q
+
+active
+suspended
+banned
