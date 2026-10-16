@@ -4,6 +4,7 @@
     "module": "CommonJS",
     "rootDir": "./src",
     "outDir": "./dist",
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "strict": true
   }

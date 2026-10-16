@@ -1,2 +1,6 @@
 node_modules/
 .env
+bungee-deliveriees-94526-firebase-adminsdk-fbsvc-bd9f57baad.json
+.env.local
+*firebase-adminsdk*.json
+dist/
