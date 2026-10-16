@@ -1,9 +1,17 @@
 export const requireAuth = (user: any) => {
-  if (!user) throw new Error("Unauthorized");
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
 };
 
-export const requireRole = (user: any, roles: string[]) => {
-  if (!user || !roles.includes(user.role)) {
+export const requireRole = (
+  user: any,
+  allowedRoles: string[]
+) => {
+
+  requireAuth(user);
+
+  if (!allowedRoles.includes(user.role)) {
     throw new Error("Forbidden");
   }
 };
