@@ -159,8 +159,10 @@ async function startServer() {
   // START SERVER
   //
 
-  httpServer.listen(5000, () => {
-    console.log("🚀 Server running at http://localhost:5000/graphql");
+  const PORT = process.env.PORT || 4000;
+
+  httpServer.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 

@@ -5,6 +5,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 export const app = express();
+import { allowedOrigins } from "./config/cors";
 
 //
 // CORS
@@ -12,11 +13,13 @@ export const app = express();
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://bungee-deliveries-git-development-mikey1nuels-projects.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      }
+    },
 
     credentials: true,
   }),

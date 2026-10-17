@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { pool } from "../config/db";
 import { redis } from "../config/redis";
+import { allowedOrigins } from "../config/cors";
 
 let io: Server | null = null;
 
@@ -24,7 +25,10 @@ const userSocketCount = new Map<string, number>();
 
 export const initSocket = (httpServer: any) => {
   io = new Server(httpServer, {
-    cors: { origin: [ "http://localhost:3000", "https://bungee-deliveries-git-development-mikey1nuels-projects.vercel.app" ], credentials: true },
+    cors: {
+      origin: allowedOrigins,
+      credentials: true,
+    },
     pingInterval: 25000, // heartbeat every 25s
     pingTimeout: 60000, // disconnect after 60s no response
   });
