@@ -23,6 +23,15 @@ import { initSocket } from "./socket";
 // JWT PAYLOAD TYPE
 //
 
+// app.ts, near the top, before other routes
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 export interface JwtPayload {
   id: string;
 
