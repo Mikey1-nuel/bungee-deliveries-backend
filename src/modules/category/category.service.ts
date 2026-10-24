@@ -7,7 +7,6 @@ export const getAllCategories = async () => {
       name,
       icon
     FROM categories
-    ORDER BY created_at ASC
   `);
 
   return result.rows;
