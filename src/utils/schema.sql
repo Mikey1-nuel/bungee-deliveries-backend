@@ -140,7 +140,7 @@ CREATE TABLE orders (
   status VARCHAR(30) DEFAULT 'pending'
     CHECK (
       status IN (
-        'pending', 'accepted', 'rejected', 'preparing',
+        'pending', 'accepted', 'rejected', 'preparing', "ready_at",
         'ready_for_pickup', 'picked_up', 'delivered', 'cancelled'
       )
     ),
@@ -151,6 +151,7 @@ CREATE TABLE orders (
   assigned_at TIMESTAMP,
   accepted_at TIMESTAMP,
   prepared_at TIMESTAMP,
+  ready_at TIMESTAMP, 
   picked_up_at TIMESTAMP,
   delivered_at TIMESTAMP,
 
@@ -357,4 +358,6 @@ VALUES
   (gen_random_uuid(), 'Grills', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778247885/categories/yuc7ovsqwmemmuxaufjd.png'),
   (gen_random_uuid(), 'Snacks & Pastries', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778248101/categories/ssjze57g8kdsagzmop2t.png'),
   (gen_random_uuid(), 'Desserts', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778247973/categories/uszsjwsa3mtancdlduqb.png'),
-  (gen_random_uuid(), 'Drinks & Beverages', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778248084/categories/x35jfg66cyiz1h9kl8xo.png');
+  (gen_random_uuid(), 'Drinks & Beverages', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778248084/categories/x35jfg66cyiz1h9kl8xo.png'),
+  (gen_random_uuid(), 'Extras & Sides', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778248117/categories/g20h9mktnten452lhjx6.png'),
+  (gen_random_uuid(), 'Swallow', 'https://res.cloudinary.com/dx0dibmdc/image/upload/v1778248117/categories/g20h9mktnten452lhjx6.png');
