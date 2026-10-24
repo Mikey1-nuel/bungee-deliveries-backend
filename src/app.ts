@@ -14,7 +14,7 @@ import { allowedOrigins } from "./config/cors";
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked for origin: ${origin}`));
