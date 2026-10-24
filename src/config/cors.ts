@@ -4,4 +4,4 @@ const envOrigins =
     o.trim().replace(/\/$/, ""),
   ) ?? []; // strip any trailing slash
 
-export const allowedOrigins = ["http://localhost:3000", ...envOrigins];
+export const allowedOrigins = ["https://bungee-deliveries.vercel.app", "http://localhost:3000", ...envOrigins];
