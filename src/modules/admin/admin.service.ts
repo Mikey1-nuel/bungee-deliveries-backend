@@ -5,6 +5,8 @@ import {
   deleteUserById,
   approveRestaurantOwner,
   rejectRestaurantOwner,
+  approveUserById,
+  rejectUserById,
 } from "../user/user.service";
 
 import { logAction } from "../audit/audit.service";
@@ -28,6 +30,7 @@ interface GetAdminUsersArgs {
   limit?: number;
   search?: string;
   role?: string;
+  approvalStatus?: string; // ← new, mirrors restaurants
 }
 
 interface GetAdminRestaurantsArgs {
@@ -105,6 +108,7 @@ export const getAdminUsers = async ({
   limit = 20,
   search,
   role,
+  approvalStatus,
 }: GetAdminUsersArgs) => {
   page = Math.max(1, page);
   limit = Math.max(1, Math.min(limit, 100));
@@ -121,12 +125,10 @@ export const getAdminUsers = async ({
       OR email ILIKE '%' || $1 || '%'
       OR phone ILIKE '%' || $1 || '%'
     )
-    AND (
-      $2::TEXT IS NULL
-      OR role = $2
-    )
+    AND ($2::TEXT IS NULL OR role = $2)
+    AND ($3::TEXT IS NULL OR approval_status = $3)
     `,
-    [search ?? null, role ?? null],
+    [search ?? null, role ?? null, approvalStatus ?? null],
   );
 
   const usersQuery = pool.query(
@@ -149,15 +151,13 @@ export const getAdminUsers = async ({
       OR email ILIKE '%' || $1 || '%'
       OR phone ILIKE '%' || $1 || '%'
     )
-    AND (
-      $2::TEXT IS NULL
-      OR role = $2
-    )
+    AND ($2::TEXT IS NULL OR role = $2)
+    AND ($3::TEXT IS NULL OR approval_status = $3)
     ORDER BY created_at DESC
-    LIMIT $3
-    OFFSET $4
+    LIMIT $4
+    OFFSET $5
     `,
-    [search ?? null, role ?? null, limit, offset],
+    [search ?? null, role ?? null, approvalStatus ?? null, limit, offset],
   );
 
   const [countResult, usersResult] = await Promise.all([
@@ -213,17 +213,13 @@ export const getAdminRestaurants = async ({
     `
     SELECT COUNT(*)::INT AS total
     FROM restaurants r
-    JOIN users u
-      ON u.id = r.owner_id
+    JOIN users u ON u.id = r.owner_id
     WHERE (
       $1::TEXT IS NULL
       OR r.name ILIKE '%' || $1 || '%'
       OR u.full_name ILIKE '%' || $1 || '%'
     )
-    AND (
-      $2::TEXT IS NULL
-      OR u.approval_status = $2
-    )
+    AND ($2::TEXT IS NULL OR u.approval_status = $2)
     `,
     [search ?? null, approvalStatus ?? null],
   );
@@ -242,17 +238,13 @@ export const getAdminRestaurants = async ({
       u.email AS owner_email,
       u.approval_status AS owner_approval_status
     FROM restaurants r
-    JOIN users u
-      ON u.id = r.owner_id
+    JOIN users u ON u.id = r.owner_id
     WHERE (
       $1::TEXT IS NULL
       OR r.name ILIKE '%' || $1 || '%'
       OR u.full_name ILIKE '%' || $1 || '%'
     )
-    AND (
-      $2::TEXT IS NULL
-      OR u.approval_status = $2
-    )
+    AND ($2::TEXT IS NULL OR u.approval_status = $2)
     ORDER BY r.created_at DESC
     LIMIT $3
     OFFSET $4
@@ -311,8 +303,7 @@ export const getAdminOrders = async ({
     `
     SELECT COUNT(*)::INT AS total
     FROM orders o
-    JOIN users u
-      ON u.id = o.user_id
+    JOIN users u ON u.id = o.user_id
     WHERE
       ($1::TEXT IS NULL OR o.status = $1)
       AND (
@@ -334,25 +325,16 @@ export const getAdminOrders = async ({
       o.created_at,
 
       CASE
-    WHEN rd.id IS NULL THEN NULL
-    ELSE json_build_object(
-      'id', rd.id,
-      'fullName', ru.full_name
-    )
-  END AS rider,
+        WHEN rd.id IS NULL THEN NULL
+        ELSE json_build_object('id', rd.id, 'fullName', ru.full_name)
+      END AS rider,
 
       json_build_object(
-        'id', r.id,
-        'name', r.name,
-        'image', r.image,
-        'location', r.location
+        'id', r.id, 'name', r.name, 'image', r.image, 'location', r.location
       ) AS restaurant,
 
       json_build_object(
-        'id', u.id,
-        'fullName', u.full_name,
-        'phone', u.phone,
-        'email', u.email
+        'id', u.id, 'fullName', u.full_name, 'phone', u.phone, 'email', u.email
       ) AS customer,
 
       COALESCE(
@@ -366,30 +348,20 @@ export const getAdminOrders = async ({
             'menu_name', oi.menu_name,
             'menu_type', oi.menu_type,
             'menu_image', oi.menu_image,
-            'menu',
-              json_build_object(
-                'name', oi.menu_name,
-                'image', oi.menu_image,
-                'type', oi.menu_type
-              )
+            'menu', json_build_object(
+              'name', oi.menu_name, 'image', oi.menu_image, 'type', oi.menu_type
+            )
           )
         ) FILTER (WHERE oi.id IS NOT NULL),
         '[]'
       ) AS items
 
     FROM orders o
-
-    JOIN restaurants r
-      ON r.id = o.restaurant_id
-
-    JOIN users u
-      ON u.id = o.user_id
-
-    LEFT JOIN order_items oi
-      ON oi.order_id = o.id
-
-      LEFT JOIN riders rd ON rd.id = o.rider_id
-LEFT JOIN users ru ON ru.id = rd.user_id
+    JOIN restaurants r ON r.id = o.restaurant_id
+    JOIN users u ON u.id = o.user_id
+    LEFT JOIN order_items oi ON oi.order_id = o.id
+    LEFT JOIN riders rd ON rd.id = o.rider_id
+    LEFT JOIN users ru ON ru.id = rd.user_id
 
     WHERE
       ($1::TEXT IS NULL OR o.status = $1)
@@ -399,15 +371,8 @@ LEFT JOIN users ru ON ru.id = rd.user_id
         OR o.id::TEXT ILIKE '%' || $2 || '%'
       )
 
-    GROUP BY
-      o.id,
-      r.id,
-      u.id,
-      rd.id,
-      ru.id
-
+    GROUP BY o.id, r.id, u.id, rd.id, ru.id
     ORDER BY o.created_at DESC
-
     LIMIT $3
     OFFSET $4
     `,
@@ -422,13 +387,12 @@ LEFT JOIN users ru ON ru.id = rd.user_id
   const total = Number(countResult.rows[0].total);
 
   return {
-    // admin.service.ts — getAdminOrders mapper
     orders: ordersResult.rows.map((row) => ({
       id: row.id,
       status: row.status,
       total: Number(row.total),
       deliveryAddress: row.delivery_address,
-      createdAt: String(new Date(row.created_at).getTime()), // ← fix
+      createdAt: String(new Date(row.created_at).getTime()),
       restaurant: row.restaurant,
       customer: row.customer,
       rider: row.rider,
@@ -464,8 +428,7 @@ export const getAdminRiders = async ({
     `
     SELECT COUNT(*)::INT AS total
     FROM riders r
-    JOIN users u
-      ON u.id = r.user_id
+    JOIN users u ON u.id = r.user_id
     WHERE (
       $1::TEXT IS NULL
       OR u.full_name ILIKE '%' || $1 || '%'
@@ -477,38 +440,32 @@ export const getAdminRiders = async ({
 
   const ridersQuery = pool.query(
     `
-  SELECT
-    r.id,
-    r.is_available,
-    u.is_online,           -- ← add this
-    u.last_seen,           -- ← add this
-    u.full_name,
-    u.phone,
-    u.email,
-    COUNT(o.id)
-      FILTER (WHERE o.status = 'delivered')
-      AS total_deliveries,
-    CASE
-      WHEN lc.id IS NULL THEN NULL
-      ELSE json_build_object(
-        'id', lc.id,
-        'name', lc.name,
-        'contactPhone', lc.contact_phone
-      )
-    END AS logistics_company
-  FROM riders r
-  JOIN users u ON u.id = r.user_id
-  LEFT JOIN orders o ON o.rider_id = r.id
-  LEFT JOIN logistics_companies lc ON lc.id = r.logistics_company_id
-  WHERE (
-    $1::TEXT IS NULL
-    OR u.full_name ILIKE '%' || $1 || '%'
-    OR u.phone    ILIKE '%' || $1 || '%'
-  )
-  GROUP BY r.id, u.id, lc.id
-  ORDER BY u.full_name ASC
-  LIMIT $2 OFFSET $3
-  `,
+    SELECT
+      r.id,
+      r.is_available,
+      u.is_online,
+      u.last_seen,
+      u.full_name,
+      u.phone,
+      u.email,
+      COUNT(o.id) FILTER (WHERE o.status = 'delivered') AS total_deliveries,
+      CASE
+        WHEN lc.id IS NULL THEN NULL
+        ELSE json_build_object('id', lc.id, 'name', lc.name, 'contactPhone', lc.contact_phone)
+      END AS logistics_company
+    FROM riders r
+    JOIN users u ON u.id = r.user_id
+    LEFT JOIN orders o ON o.rider_id = r.id
+    LEFT JOIN logistics_companies lc ON lc.id = r.logistics_company_id
+    WHERE (
+      $1::TEXT IS NULL
+      OR u.full_name ILIKE '%' || $1 || '%'
+      OR u.phone ILIKE '%' || $1 || '%'
+    )
+    GROUP BY r.id, u.id, lc.id
+    ORDER BY u.full_name ASC
+    LIMIT $2 OFFSET $3
+    `,
     [search ?? null, limit, offset],
   );
 
@@ -525,8 +482,8 @@ export const getAdminRiders = async ({
       fullName: row.full_name,
       phone: row.phone,
       email: row.email,
-      isAvailable: row.is_available, // rider's manual availability toggle
-      isOnline: row.is_online, // ← actual socket presence
+      isAvailable: row.is_available,
+      isOnline: row.is_online,
       lastSeen: row.last_seen
         ? new Date(Number(row.last_seen)).toISOString()
         : null,
@@ -546,23 +503,16 @@ export const getAdminRiders = async ({
 };
 
 //
-// USER ACTIONS
+// USER ACTIONS — ban / unban / delete (unchanged)
 //
 
 export const banUser = async (adminId: string, userId: string) => {
-  if (adminId === userId) {
-    throw new Error("You cannot ban your own account.");
-  }
+  if (adminId === userId) throw new Error("You cannot ban your own account.");
 
   const target = await findUserById(userId);
-
-  if (!target) {
-    throw new Error("User not found.");
-  }
-
-  if (target.role === "admin") {
+  if (!target) throw new Error("User not found.");
+  if (target.role === "admin")
     throw new Error("Another administrator cannot be banned.");
-  }
 
   await updateUserStatus(userId, "suspended");
 
@@ -573,18 +523,12 @@ export const banUser = async (adminId: string, userId: string) => {
     entityId: userId,
   });
 
-  return {
-    success: true,
-    message: "User suspended successfully.",
-  };
+  return { success: true, message: "User suspended successfully." };
 };
 
 export const unbanUser = async (adminId: string, userId: string) => {
   const target = await findUserById(userId);
-
-  if (!target) {
-    throw new Error("User not found.");
-  }
+  if (!target) throw new Error("User not found.");
 
   await updateUserStatus(userId, "active");
 
@@ -595,32 +539,22 @@ export const unbanUser = async (adminId: string, userId: string) => {
     entityId: userId,
   });
 
-  return {
-    success: true,
-    message: "User activated successfully.",
-  };
+  return { success: true, message: "User activated successfully." };
 };
 
 export const deleteUser = async (adminId: string, userId: string) => {
-  if (adminId === userId) {
+  if (adminId === userId)
     throw new Error("You cannot delete your own account.");
-  }
 
   const target = await findUserById(userId);
-
-  if (!target) {
-    throw new Error("User not found.");
-  }
-
-  if (target.role === "admin") {
+  if (!target) throw new Error("User not found.");
+  if (target.role === "admin")
     throw new Error("Another administrator cannot be deleted.");
-  }
 
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
-
     await deleteUserById(client, userId);
 
     await logAction({
@@ -631,11 +565,7 @@ export const deleteUser = async (adminId: string, userId: string) => {
     });
 
     await client.query("COMMIT");
-
-    return {
-      success: true,
-      message: "User deleted successfully.",
-    };
+    return { success: true, message: "User deleted successfully." };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -645,19 +575,89 @@ export const deleteUser = async (adminId: string, userId: string) => {
 };
 
 //
-// RESTAURANT ACTIONS
+// GENERIC APPROVAL — works for ANY pending role (rider, logistics, restaurant, customer)
 //
 
-// approveRestaurant / rejectRestaurant
+export const approveUser = async (adminId: string, userId: string) => {
+  const approved = await approveUserById(userId);
+
+  if (!approved) {
+    throw new Error("User not found or already approved.");
+  }
+
+  try {
+    await logAction({
+      userId: adminId,
+      action: "APPROVE_USER",
+      entity: "USER",
+      entityId: userId,
+      metadata: { role: approved.role },
+    });
+  } catch (err) {
+    console.warn("Audit log failed (non-fatal):", err);
+  }
+
+  try {
+    await createNotification({
+      userId,
+      type: "account_approved",
+      title: "Account Approved ✅",
+      message: "Your account has been approved — you can now log in.",
+      channel: "in_app",
+    });
+  } catch (err) {
+    console.warn("Approval notification failed (non-fatal):", err);
+  }
+
+  return { success: true, message: "Account approved successfully." };
+};
+
+export const rejectUser = async (adminId: string, userId: string) => {
+  const rejected = await rejectUserById(userId);
+
+  if (!rejected) {
+    throw new Error("User not found or already rejected.");
+  }
+
+  try {
+    await logAction({
+      userId: adminId,
+      action: "REJECT_USER",
+      entity: "USER",
+      entityId: userId,
+      metadata: { role: rejected.role },
+    });
+  } catch (err) {
+    console.warn("Audit log failed (non-fatal):", err);
+  }
+
+  try {
+    await createNotification({
+      userId,
+      type: "account_rejected",
+      title: "Account Rejected",
+      message:
+        "Your account application has been rejected. Please contact support if you need clarification.",
+      channel: "in_app",
+    });
+  } catch (err) {
+    console.warn("Rejection notification failed (non-fatal):", err);
+  }
+
+  return { success: true, message: "Account rejected successfully." };
+};
+
+//
+// RESTAURANT-SPECIFIC APPROVAL — kept for the Restaurants page's richer review view.
+// Internally equivalent to approveUser/rejectUser, scoped via the restaurant's owner.
+//
+
 export const approveRestaurant = async (
   adminId: string,
   restaurantId: string,
 ) => {
   const ownerId = await approveRestaurantOwner(restaurantId);
-
-  if (!ownerId) {
-    throw new Error("Restaurant not found");
-  }
+  if (!ownerId) throw new Error("Restaurant not found");
 
   try {
     await logAction({
@@ -682,10 +682,7 @@ export const approveRestaurant = async (
     console.warn("Approval notification failed (non-fatal):", err);
   }
 
-  return {
-    success: true,
-    message: "Restaurant approved successfully.",
-  };
+  return { success: true, message: "Restaurant approved successfully." };
 };
 
 export const rejectRestaurant = async (
@@ -693,10 +690,7 @@ export const rejectRestaurant = async (
   restaurantId: string,
 ) => {
   const ownerId = await rejectRestaurantOwner(restaurantId);
-
-  if (!ownerId) {
-    throw new Error("Restaurant not found");
-  }
+  if (!ownerId) throw new Error("Restaurant not found");
 
   try {
     await logAction({
@@ -722,14 +716,11 @@ export const rejectRestaurant = async (
     console.warn("Rejection notification failed (non-fatal):", err);
   }
 
-  return {
-    success: true,
-    message: "Restaurant rejected successfully.",
-  };
+  return { success: true, message: "Restaurant rejected successfully." };
 };
 
 //
-// CREATE USER (admin can create any role)
+// CREATE USER — unchanged
 //
 
 export const adminCreateUser = async (
@@ -740,12 +731,9 @@ export const adminCreateUser = async (
     phone: string;
     password: string;
     role: string;
-    // restaurant-specific
     restaurantName?: string;
     restaurantLocation?: string;
-    // rider-specific
     logisticsCompanyId?: string;
-    // logistics-specific
     companyName?: string;
     companyPhone?: string;
   },
@@ -768,13 +756,9 @@ export const adminCreateUser = async (
 
     const newUser = userResult.rows[0];
 
-    // Create role-specific profile
     if (input.role === "restaurant") {
       await client.query(
-        `
-        INSERT INTO restaurants (owner_id, name, location)
-        VALUES ($1, $2, $3)
-        `,
+        `INSERT INTO restaurants (owner_id, name, location) VALUES ($1, $2, $3)`,
         [
           newUser.id,
           input.restaurantName ?? input.fullName,
@@ -785,20 +769,14 @@ export const adminCreateUser = async (
 
     if (input.role === "rider") {
       await client.query(
-        `
-        INSERT INTO riders (user_id, logistics_company_id, is_available)
-        VALUES ($1, $2, true)
-        `,
+        `INSERT INTO riders (user_id, logistics_company_id, is_available) VALUES ($1, $2, true)`,
         [newUser.id, input.logisticsCompanyId ?? null],
       );
     }
 
     if (input.role === "logistics") {
       await client.query(
-        `
-        INSERT INTO logistics_companies (id, name, contact_phone)
-        VALUES ($1, $2, $3)
-        `,
+        `INSERT INTO logistics_companies (id, name, contact_phone) VALUES ($1, $2, $3)`,
         [
           newUser.id,
           input.companyName ?? input.fullName,
@@ -834,7 +812,7 @@ export const adminCreateUser = async (
 };
 
 //
-// LOGISTICS COMPANIES
+// LOGISTICS COMPANIES — unchanged
 //
 
 export const getAdminLogistics = async ({
@@ -865,41 +843,40 @@ export const getAdminLogistics = async ({
     ),
     pool.query(
       `
-  SELECT
-    lc.id,
-    lc.name,
-    lc.contact_phone,
-    lc.created_at,
-    COUNT(r.id)::INT                                                    AS total_riders,
-    COUNT(r.id) FILTER (WHERE u.is_online = true)::INT                 AS online_riders,
-    COUNT(r.id) FILTER (WHERE u.is_online = true AND r.is_available = true)::INT AS available_riders,
-    COUNT(r.id) FILTER (
-      WHERE u.is_online = true
-      AND EXISTS (
-        SELECT 1 FROM orders o
-        WHERE o.rider_id = r.id
-        AND o.status IN ('picked_up', 'ready_for_pickup')
+      SELECT
+        lc.id,
+        lc.name,
+        lc.contact_phone,
+        lc.created_at,
+        COUNT(r.id)::INT AS total_riders,
+        COUNT(r.id) FILTER (WHERE u.is_online = true)::INT AS online_riders,
+        COUNT(r.id) FILTER (WHERE u.is_online = true AND r.is_available = true)::INT AS available_riders,
+        COUNT(r.id) FILTER (
+          WHERE u.is_online = true
+          AND EXISTS (
+            SELECT 1 FROM orders o
+            WHERE o.rider_id = r.id
+            AND o.status IN ('picked_up', 'ready_for_pickup')
+          )
+        )::INT AS busy_riders
+      FROM logistics_companies lc
+      LEFT JOIN riders r ON r.logistics_company_id = lc.id
+      LEFT JOIN users u ON u.id = r.user_id
+      WHERE (
+        $1::TEXT IS NULL
+        OR lc.name ILIKE '%' || $1 || '%'
+        OR lc.contact_phone ILIKE '%' || $1 || '%'
       )
-    )::INT AS busy_riders
-  FROM logistics_companies lc
-  LEFT JOIN riders r ON r.logistics_company_id = lc.id
-  LEFT JOIN users u ON u.id = r.user_id
-  WHERE (
-    $1::TEXT IS NULL
-    OR lc.name ILIKE '%' || $1 || '%'
-    OR lc.contact_phone ILIKE '%' || $1 || '%'
-  )
-  GROUP BY lc.id
-  ORDER BY lc.created_at DESC
-  LIMIT $2 OFFSET $3
-  `,
+      GROUP BY lc.id
+      ORDER BY lc.created_at DESC
+      LIMIT $2 OFFSET $3
+      `,
       [search ?? null, limit, offset],
     ),
   ]);
 
   const total = Number(countResult.rows[0].total);
 
-  // In the mapper:
   return {
     logistics: result.rows.map((row) => ({
       id: row.id,
@@ -923,7 +900,7 @@ export const getAdminLogistics = async ({
 };
 
 //
-// DISPATCH BATCHES
+// DISPATCH BATCHES — unchanged
 //
 
 type DispatchSlot = "morning" | "afternoon" | "evening";
@@ -940,7 +917,7 @@ export const createDispatchBatch = async (
     riderId: string;
     orderIds: string[];
     slot: DispatchSlot;
-    scheduledDate: string; // YYYY-MM-DD
+    scheduledDate: string;
   },
 ) => {
   const client = await pool.connect();
@@ -993,7 +970,6 @@ export const createDispatchBatch = async (
         `UPDATE orders SET rider_id = $1, assigned_at = NOW() WHERE id = $2`,
         [input.riderId, orderId],
       );
-
       await client.query(
         `INSERT INTO dispatch_batch_orders (batch_id, order_id) VALUES ($1, $2)`,
         [batch.id, orderId],
@@ -1016,10 +992,6 @@ export const createDispatchBatch = async (
     client.release();
   }
 
-  //
-  // POST-COMMIT: notify the rider. The batch is already saved at this
-  // point — a failure here must never be reported as a failed dispatch.
-  //
   try {
     const riderUserResult = await pool.query(
       `SELECT user_id FROM riders WHERE id = $1`,
@@ -1116,7 +1088,7 @@ export const getDispatchBatches = async ({
     batches: result.rows.map((row) => ({
       id: row.id,
       slot: row.slot,
-      scheduledAt: String(new Date(row.scheduled_at).getTime()), // ← was raw timestamp
+      scheduledAt: String(new Date(row.scheduled_at).getTime()),
       status: row.status,
       createdAt: String(new Date(row.created_at).getTime()),
       riderName: row.rider_name,

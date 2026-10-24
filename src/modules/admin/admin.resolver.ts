@@ -9,6 +9,8 @@ import {
   banUser,
   unbanUser,
   deleteUser,
+  approveUser,
+  rejectUser,
   approveRestaurant,
   rejectRestaurant,
   getAdminLogistics,
@@ -29,28 +31,9 @@ export const adminResolvers = {
       return getAdminUsers(args);
     },
 
-    // getAdminRestaurants: async (_: any, args: any, { user }: any) => {
-    //   requireRole(user, ["admin"]);
-    //   return getAdminRestaurants(args);
-    // },
-
-    getAdminRestaurants: async (
-      _: unknown,
-      {
-        page,
-        limit,
-        search,
-        approvalStatus,
-      }: {
-        page?: number;
-        limit?: number;
-        search?: string;
-        approvalStatus?: string;
-      },
-      context: any,
-    ) => {
-      requireRole(context.user, ["admin"]);
-      return await getAdminRestaurants({ page, limit, search, approvalStatus });
+    getAdminRestaurants: async (_: any, args: any, { user }: any) => {
+      requireRole(user, ["admin"]);
+      return getAdminRestaurants(args);
     },
 
     getAdminOrders: async (_: any, args: any, { user }: any) => {
@@ -67,6 +50,7 @@ export const adminResolvers = {
       requireRole(user, ["admin"]);
       return getAdminLogistics(args);
     },
+
     getDispatchBatches: async (_: any, args: any, { user }: any) => {
       requireRole(user, ["admin"]);
       return getDispatchBatches(args);
@@ -78,6 +62,7 @@ export const adminResolvers = {
       requireRole(user, ["admin"]);
       return adminCreateUser(user.id, args);
     },
+
     createDispatchBatch: async (_: any, args: any, { user }: any) => {
       requireRole(user, ["admin"]);
       return createDispatchBatch(user.id, args);
@@ -98,6 +83,18 @@ export const adminResolvers = {
       return deleteUser(user.id, userId);
     },
 
+    // Generic — works for any pending role
+    approveUser: async (_: any, { userId }: any, { user }: any) => {
+      requireRole(user, ["admin"]);
+      return approveUser(user.id, userId);
+    },
+
+    rejectUser: async (_: any, { userId }: any, { user }: any) => {
+      requireRole(user, ["admin"]);
+      return rejectUser(user.id, userId);
+    },
+
+    // Restaurant-specific — kept for the Restaurants review page
     approveRestaurant: async (_: any, { restaurantId }: any, { user }: any) => {
       requireRole(user, ["admin"]);
       return approveRestaurant(user.id, restaurantId);

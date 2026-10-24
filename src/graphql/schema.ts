@@ -739,7 +739,7 @@ type Query {
   getLogisticsOverview: LogisticsOverview!
 
     getAdminStats: AdminStats!
-  getAdminUsers(page: Int, limit: Int, search: String, role: String): AdminUsersResponse!
+  getAdminUsers(page: Int, limit: Int, search: String, role: String, approvalStatus: ApprovalStatus): AdminUsersResponse!
   getAdminRestaurants(
     page: Int
     limit: Int
@@ -813,6 +813,8 @@ type Mutation {
   deleteUser(userId: ID!): MutationResponse!
   approveRestaurant(restaurantId: ID!): MutationResponse!
   rejectRestaurant(restaurantId: ID!): MutationResponse!
+  approveUser(userId: ID!): MutationResponse!
+rejectUser(userId: ID!): MutationResponse!
 
   adminCreateUser(
     fullName: String!

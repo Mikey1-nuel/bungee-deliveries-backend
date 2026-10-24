@@ -50,6 +50,38 @@ export const deleteUserById = async (client: PoolClient, userId: string) => {
   );
 };
 
+// user.service.ts — add these two functions
+
+export const approveUserById = async (userId: string) => {
+  const result = await pool.query(
+    `
+    UPDATE users
+    SET approval_status = 'approved'
+    WHERE id = $1
+      AND approval_status != 'approved'
+    RETURNING id, role
+    `,
+    [userId],
+  );
+
+  return result.rows[0] ?? null; // { id, role } or null if not found / already approved
+};
+
+export const rejectUserById = async (userId: string) => {
+  const result = await pool.query(
+    `
+    UPDATE users
+    SET approval_status = 'rejected'
+    WHERE id = $1
+      AND approval_status != 'rejected'
+    RETURNING id, role
+    `,
+    [userId],
+  );
+
+  return result.rows[0] ?? null;
+};
+
 export const approveRestaurantOwner = async (restaurantId: string) => {
   const result = await pool.query(
     `
