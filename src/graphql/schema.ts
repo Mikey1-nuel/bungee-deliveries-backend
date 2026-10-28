@@ -343,6 +343,9 @@ input SignupInput {
   restaurantName: String
   restaurantLocation: String
   restaurantImage: String
+  logisticsCompanyId: ID
+    companyName?: string;
+  companyPhone?: string;
 }
 
 input LoginInput {
