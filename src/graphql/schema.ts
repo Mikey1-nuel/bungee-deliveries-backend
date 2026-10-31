@@ -334,6 +334,7 @@ type NotificationStats {
 # INPUTS
 #
 
+
 input SignupInput {
   fullName: String!
   email: String!
@@ -344,8 +345,8 @@ input SignupInput {
   restaurantLocation: String
   restaurantImage: String
   logisticsCompanyId: ID
-    companyName?: string;
-  companyPhone?: string;
+  companyName: String
+  companyPhone: String
 }
 
 input LoginInput {
